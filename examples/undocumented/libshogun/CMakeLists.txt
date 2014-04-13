@@ -109,6 +109,7 @@ SET(EXAMPLES
 	library_circularbuffer
 	so_factorgraph
 	io_libsvm_multilabel
+	so_fg_multilabel
 )
 
 IF (USE_MOSEK)

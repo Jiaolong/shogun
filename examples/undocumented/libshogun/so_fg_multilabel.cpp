@@ -7,12 +7,11 @@
  * Written (W) 2014 Jiaolong Xu
  * Copyright (C) 2014 Jiaolong Xu
  */
-#include <shogun/io/SGIO.h>
-#include <shogun/io/LineReader.h>
-#include <shogun/io/Parser.h>
+#include <shogun/io/LibSVMFile.h>
 #include <shogun/lib/common.h>
 #include <shogun/lib/Time.h>
 #include <shogun/lib/DelimiterTokenizer.h>
+#include <shogun/lib/SGSparseVector.h>
 #include <shogun/base/DynArray.h>
 #include <shogun/base/init.h>
 
@@ -24,22 +23,27 @@
 #include <shogun/structure/FactorGraphModel.h>
 #include <shogun/features/FactorGraphFeatures.h>
 #include <shogun/labels/FactorGraphLabels.h>
+#include <shogun/structure/SOSVMHelper.h>
 
 using namespace shogun;
 
 #define NUM_STATUS 2
-#define NUM_CLASSES 6
-#define USE_RANDOM_DATA
-// #define SHOW_DATA
+//#define SHOW_DATA
 
-const char FNAME_TRAIN[] = "../../../data/multilabel/scene_train.txt";
-const char FNAME_TEST[]  = "../../../data/multilabel/scene_test.txt";
+//#define DATASET_YEAST
+#ifdef DATASET_YEAST
+const char FNAME_TRAIN[] = "../../../data/multilabel/yeast_train.svm";
+const char FNAME_TEST[]  = "../../../data/multilabel/yeast_test.svm";
+#else
+const char FNAME_TRAIN[] = "../../../data/multilabel/scene_train";
+const char FNAME_TEST[]  = "../../../data/multilabel/scene_test";
+#endif
 
 void gen_data(SGMatrix<int32_t>& labels, SGMatrix<float64_t>& feats)
 {
 	int32_t dim		 = 2;
 	int32_t num_sample	 = 100;
-	int32_t num_classes  = 6;
+	int32_t num_classes      = 6;
 
 	labels = SGMatrix<int32_t>(num_classes, num_sample);
 	feats  = SGMatrix<float64_t>(dim, num_sample);
@@ -59,110 +63,110 @@ void gen_data(SGMatrix<int32_t>& labels, SGMatrix<float64_t>& feats)
 	}
 }
 
-int32_t read_numbers(SGVector<char> line, DynArray<float64_t> v, CParser * parser_line)
-{
-	parser_line->set_text(line);
-
-	int32_t num_entries = 0;
-
-	while (parser_line->has_next())
-	{
-		v.push_back(parser_line->read_real());
-		num_entries++;
-	}
-
-	return num_entries;
-}
-
 void read_data(const char * fname, SGMatrix<int32_t>& labels, SGMatrix<float64_t>& feats)
 {
-	FILE * pfile  = fopen(fname, "r");
-	if (pfile == NULL)
+	// sparse data from matrix
+	CLibSVMFile * svmfile = new CLibSVMFile(fname);
+
+	SGSparseVector<float64_t>* spv_feats;
+	SGVector<float64_t>* pv_labels;
+	int32_t dim_feat;
+	int32_t num_samples;
+	int32_t num_classes;
+
+	svmfile->get_sparse_matrix(spv_feats, dim_feat, num_samples, pv_labels, num_classes);
+
+	SG_SPRINT("Number of the samples: %d\n", num_samples);
+	SG_SPRINT("Dimention of the feature: %d\n", dim_feat+1);
+	SG_SPRINT("Number of classes: %d\n", num_classes);
+
+	feats  = SGMatrix<float64_t>(dim_feat+1, num_samples);
+	labels = SGMatrix<int32_t>(num_classes, num_samples);
+	feats.zero();
+	labels.zero();
+
+	for (int32_t i = 0; i < num_samples; i++)
 	{
-		SG_SERROR("Unable to open file: %s\n", fname);
-	}
+		SGVector<float64_t> v_feat = spv_feats[i].get_dense();
+		SGVector<float64_t> v_labels = pv_labels[i];
 
-	CDelimiterTokenizer * token_txt = new CDelimiterTokenizer();
-	token_txt->delimiters['\n'] = 1;
-	SG_REF(token_txt);
-
-	CLineReader * reader_txt = new CLineReader(pfile, token_txt);
-
-	CDelimiterTokenizer * token_line = new CDelimiterTokenizer(true);
-	token_line->delimiters[' '] = 1;
-	SG_REF(token_line);
-
-	CParser * parser_line = new CParser();
-	parser_line->set_tokenizer(token_line);
-	SG_REF(parser_line);
-
-	int32_t num_sample = 0;
-	SGVector<char> str_line;
-	DynArray<float64_t> v_line;
-	DynArray<float64_t> v_feats;
-	DynArray<int32_t> v_labs;
-
-	while (reader_txt->has_next())
-	{
-		v_line.reset(0);
-		str_line = reader_txt->read_line();
-		int32_t len = read_numbers(str_line, v_line, parser_line);
-		for (int32_t i = 0; i < len; i++)
+		for (int32_t f = 0; f < v_feat.size(); f++)
 		{
-			if (i < NUM_CLASSES)
-			{
-				v_labs.push_back((int32_t)v_line[i]);
-			}
-			else
-			{
-				v_feats.push_back(v_line[i]);
-			}
+			feats(f, i) = v_feat[f];
 		}
-		num_sample++;
+		feats(dim_feat, i) = 1.0; // bias
+
+		for (int32_t l = 0; l < v_labels.size(); l++)
+		{
+			labels((int32_t)v_labels[l], i) = 1;
+		}
 	}
-	SG_SPRINT("Loaded %d samples.\n", num_sample);
 
-	int32_t dim = v_line.get_array_size() - NUM_CLASSES;
-	feats  = SGMatrix<float64_t>(dim, num_sample);
-	labels = SGMatrix<int32_t>(NUM_CLASSES, num_sample);
-	memcpy(&feats[0], &v_feats, dim * num_sample * sizeof(float64_t));
-	memcpy(&labels[0], &v_labs, NUM_CLASSES * num_sample * sizeof(int32_t));
-
-	v_line.reset(0);
-	v_feats.reset(0);
-	v_labs.reset(0);
-	SG_UNREF(reader_txt);
-	SG_UNREF(token_txt);
-	SG_UNREF(token_line);
-	SG_UNREF(parser_line);
-
-	fclose(pfile);
+	SG_UNREF(svmfile);
+	SG_FREE(spv_feats);
+	SG_FREE(pv_labels);
 }
 
 SGMatrix< int32_t > get_tree_index()
 {
-	// A tree structure is defined by a 2-d matrix where
-	// each row stores the indecies of a pair of connect factors
-	// Define label tree structure
-	SGMatrix< int32_t > label_tree_index(5, 2);
-	label_tree_index[0] = 0;
-	label_tree_index[1] = 0;
-	label_tree_index[2] = 1;
-	label_tree_index[3] = 4;
-	label_tree_index[4] = 2;
+	SGMatrix< int32_t > label_tree_index;
+	
+#ifdef DATASET_YEAST
+		// A full connected structure is defined by a 2-d matrix where
+		// each row stores the indecies of a pair of connect factors
+		// Define label tree structure
+		label_tree_index = SGMatrix< int32_t > (13, 2);
+		label_tree_index[0] = 0;
+		label_tree_index[1] = 1;
+		label_tree_index[2] = 2;
+		label_tree_index[3] = 3;
+		label_tree_index[4] = 3;
+		label_tree_index[5] = 4;
+		label_tree_index[6] = 5;
+		label_tree_index[7] = 6;
+		label_tree_index[8] = 7;
+		label_tree_index[9] = 9;
+		label_tree_index[10] = 3;
+		label_tree_index[11] = 11;
+		label_tree_index[12] = 3;
+		
+		label_tree_index[13] = 1;
+		label_tree_index[14] = 3;
+		label_tree_index[15] = 3;
+		label_tree_index[16] = 5;
+		label_tree_index[17] = 12;
+		label_tree_index[18] = 5;
+		label_tree_index[19] = 6;
+		label_tree_index[20] = 7;
+		label_tree_index[21] = 8;
+		label_tree_index[22] = 10;
+		label_tree_index[23] = 10;
+		label_tree_index[24] = 12;
+		label_tree_index[25] = 13;
+#else	
+		// A tree structure is defined by a 2-d matrix where
+		// each row stores the indecies of a pair of connect factors
+		// Define label tree structure
+		label_tree_index = SGMatrix< int32_t > (5, 2);
+		label_tree_index[0] = 0;
+		label_tree_index[1] = 0;
+		label_tree_index[2] = 1;
+		label_tree_index[3] = 4;
+		label_tree_index[4] = 2;
 
-	label_tree_index[5] = 2;
-	label_tree_index[6] = 3;
-	label_tree_index[7] = 4;
-	label_tree_index[8] = 5;
-	label_tree_index[9] = 5;
-
+		label_tree_index[5] = 2;
+		label_tree_index[6] = 3;
+		label_tree_index[7] = 4;
+		label_tree_index[8] = 5;
+		label_tree_index[9] = 5;
+#endif	
+	
 	return label_tree_index;
 }
 
-void build_factor_graph(SGMatrix<float64_t> feats, SGMatrix<int32_t> labels, \
-                        CFactorGraphFeatures * fg_feats, CFactorGraphLabels * fg_labels, \
-                        const DynArray<CTableFactorType *>& v_ftp_u, \
+void build_factor_graph(SGMatrix<float64_t> feats, SGMatrix<int32_t> labels,
+                        CFactorGraphFeatures * fg_feats, CFactorGraphLabels * fg_labels,
+                        const DynArray<CTableFactorType *>& v_ftp_u,
                         const DynArray<CTableFactorType *>& v_ftp_t)
 {
 	int32_t num_sample        = labels.num_cols;
@@ -182,7 +186,7 @@ void build_factor_graph(SGMatrix<float64_t> feats, SGMatrix<int32_t> labels, \
 
 		float64_t * pfeat = feats.get_column_vector(n);
 		SGVector<float64_t> feat_i(dim);
-		memcpy(&feat_i[0], &pfeat[0], dim * sizeof(float64_t));
+		memcpy(feat_i.vector, pfeat, dim * sizeof(float64_t));
 
 		// add unary factors
 		for (int32_t u = 0; u < num_classes; u++)
@@ -208,7 +212,7 @@ void build_factor_graph(SGMatrix<float64_t> feats, SGMatrix<int32_t> labels, \
 		// add label
 		int32_t * plabs = labels.get_column_vector(n);
 		SGVector<int32_t> states_gt(num_classes);
-		memcpy(&states_gt[0], &plabs[0], num_classes * sizeof(int32_t));
+		memcpy(states_gt.vector, plabs, num_classes * sizeof(int32_t));
 		SGVector<float64_t> loss_weights(num_classes);
 		SGVector<float64_t>::fill_vector(loss_weights.vector, loss_weights.vlen, 1.0);
 		CFactorGraphObservation * fg_obs = new CFactorGraphObservation(states_gt, loss_weights);
@@ -220,10 +224,26 @@ void build_factor_graph(SGMatrix<float64_t> feats, SGMatrix<int32_t> labels, \
 		SG_SPRINT("- sample %d:\n", n);
 		SGVector<int32_t> fst = fg_observ->get_data();
 		SGVector<int32_t>::display_vector(fst.vector, fst.vlen);
-		SGVector<float64_t>::display_vector(feat_i.vector, feat_i.vlen);
+		//SGVector<float64_t>::display_vector(feat_i.vector, feat_i.vlen);
 		SG_UNREF(fg_observ);
 #endif
 	}
+}
+
+float64_t hamming_loss(SGVector<int32_t> y_t, SGVector<int32_t> y_p)
+{
+	if(y_t.size()==0)
+		SG_SERROR("Multilabel length must > 0");
+
+	if(y_t.size() != y_p.size())
+		SG_SERROR("Multilable of unequal lenght.");
+
+	float64_t dis = 0.0;
+
+	for(int32_t i=0; i<y_t.size(); i++)
+		y_t[i]==y_p[i] ? dis += 0 : dis += 1.0;
+	
+	return dis/y_t.size();
 }
 
 void evaluate(CFactorGraphModel * model, int32_t num_samples, CStructuredLabels * labels_sgd, \
@@ -235,7 +255,18 @@ void evaluate(CFactorGraphModel * model, int32_t num_samples, CStructuredLabels 
 	{
 		CStructuredData * y_pred  = labels_sgd->get_label(i);
 		CStructuredData * y_truth = fg_labels->get_label(i);
-		acc_loss_sgd += model->delta_loss(y_truth, y_pred);
+		//acc_loss_sgd += model->delta_loss(y_truth, y_pred);
+
+		CFactorGraphObservation* y_t = CFactorGraphObservation::obtain_from_generic(y_truth);
+		CFactorGraphObservation* y_p = CFactorGraphObservation::obtain_from_generic(y_pred);
+		SGVector<int32_t> s_truth = y_t->get_data();
+		SGVector<int32_t> s_pred = y_p->get_data();
+		acc_loss_sgd += hamming_loss(s_truth, s_pred);
+#ifdef SHOW_DATA
+		SG_SPRINT("sample %d\n", i);
+		s_truth.display_vector();
+		s_pred.display_vector();
+#endif
 		SG_UNREF(y_pred);
 		SG_UNREF(y_truth);
 	}
@@ -318,9 +349,9 @@ void test()
 	}
 
 	// create SGD solver
-	CStochasticSOSVM * sgd = new CStochasticSOSVM(model, fg_labels_train);
-	sgd->set_num_iter(100);
-	sgd->set_lambda(0.01);
+	CStochasticSOSVM * sgd = new CStochasticSOSVM(model, fg_labels_train,true,true);
+	sgd->set_num_iter(200);
+	sgd->set_lambda(0.0001);
 	SG_REF(sgd);
 
 	// timer
@@ -332,6 +363,11 @@ void test()
 	SG_SPRINT(">>>> SGD trained in %9.4f\n", t2);
 
 #ifdef SHOW_DATA
+	CSOSVMHelper* helper = sgd->get_helper();
+	SGVector<float64_t> primal_obj = helper->get_primal_values();
+	primal_obj.display_vector("primal values");
+	SG_UNREF(helper);
+
 	// check w
 	sgd->get_w().display_vector("w_sgd");
 #endif
@@ -345,9 +381,12 @@ void test()
 	evaluate(model, num_sample_train, labels_sgd, fg_labels_train, ave_loss_sgd);
 
 	SG_SPRINT("sgd solver: average training loss = %f\n", ave_loss_sgd);
+	SG_UNREF(labels_sgd);
 
 #ifdef USE_RANDOM_DATA
 #else
+	SG_SPRINT("----------------------------------------------------\n");
+
 	// Read testing data
 	SGMatrix<int32_t> labels_test;
 	SGMatrix<float64_t> feats_test;
@@ -366,6 +405,7 @@ void test()
 	labels_sgd = CLabelsFactory::to_structured(sgd->apply());
 
 	evaluate(model, num_sample_test, labels_sgd, fg_labels_test, ave_loss_sgd);
+	SG_REF(labels_sgd);
 
 	SG_SPRINT("sgd solver: average testing error = %f\n", ave_loss_sgd);
 
@@ -385,6 +425,22 @@ int main(int argc, char * argv[])
 	init_shogun_with_defaults();
 
 	//sg_io->set_loglevel(MSG_DEBUG);
+
+        FILE * pfile = fopen(FNAME_TRAIN, "r");
+	if (pfile == NULL)
+	{
+		SG_SPRINT("Unable to open file: %s\n", FNAME_TRAIN);
+		return 0;
+	}
+        fclose(pfile);
+
+        pfile = fopen(FNAME_TEST, "r");
+	if (pfile == NULL)
+	{
+		SG_SPRINT("Unable to open file: %s\n", FNAME_TEST);
+		return 0;
+	}
+        fclose(pfile);
 
 	test();
 
