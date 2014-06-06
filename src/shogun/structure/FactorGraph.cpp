@@ -317,3 +317,85 @@ void CFactorGraph::loss_augmentation(SGVector<int32_t> states_gt, SGVector<float
 	ASSERT(min_var == 1);
 }
 
+void CFactorGraph::load_uai_file(CUAIFile* uai_file)
+{
+	SGVector<char> net_type;
+	int32_t num_factors, num_vars;
+	SGVector<int32_t>* factor_vars;
+
+	// parse file
+	uai_file->parse();
+
+	// get preamble
+	uai_file->get_preamble(net_type, num_vars, m_cardinalities, num_factors, factor_vars);
+
+	ASSERT(num_vars == m_cardinalities.size());
+
+	// Add factors
+	for (int32_t i=0; i<num_factors; i++)
+	{
+		// Define factor type
+		int32_t tid = i;
+		int32_t num_vars_fi = factor_vars[i].size();
+		SGVector<int32_t> card(num_vars);
+		int32_t len_w = 1;
+		
+		for(int32_t vi=0; vi<num_vars_fi; vi++)
+		{
+			int32_t var_index = factor_vars[i][vi];
+			card[vi] = m_cardinalities[var_index];
+			len_w = len_w*card[vi];
+		}
+		
+		SGVector<float64_t> w(len_w);
+		w.zero();
+		
+		CTableFactorType* factorType = new CTableFactorType(tid, card, w);
+		SG_REF(factorType);
+		
+		SGVector<float64_t> data;	
+		CFactor* fac1 = new CFactor(factorType, factor_vars[i], data);
+		SG_REF(fac1);
+		add_factor(fac1);
+	}
+	
+	// Factor energy table
+	SGVector<float64_t>* energy_tables;
+	uai_file->get_factors_table(energy_tables);
+	for(int32_t i=0; i<num_factors; i++)
+	{
+		CFactor* fac = dynamic_cast<CFactor*>(m_factors->get_element(i));
+		fac->set_energies(energy_tables[i]);	
+	}
+}
+
+void CFactorGraph::save_uai_file(CUAIFile* uai_file)
+{
+	uai_file->set_net_type("MARKOV");
+	uai_file->set_num_vars(m_cardinalities.size());
+	uai_file->set_vars_card(m_cardinalities);
+	int32_t num_factors = get_num_factors();
+	uai_file->set_num_factors(num_factors);
+	
+	SGVector<int32_t>* factors_vars = new SGVector<int32_t>[num_factors];
+	for(int32_t fi=0; fi<num_factors; fi++)
+	{
+		CFactor* fac = dynamic_cast<CFactor*>(m_factors->get_element(fi));
+		SGVector<int32_t> f_var = fac->get_variables();
+     	factors_vars[fi] = f_var;
+	}
+	uai_file->set_factors_scope(num_factors, factors_vars);
+	
+	SGVector<float64_t>* energy_table = new SGVector<float64_t> [num_factors];
+	for(int32_t fi=0; fi<num_factors; fi++)
+	{
+		CFactor* fac = dynamic_cast<CFactor*>(m_factors->get_element(fi));
+		fac->compute_energies();
+		energy_table[fi] = fac->get_energies();
+	}
+	
+	uai_file->set_factors_table(num_factors, energy_table);
+	
+	delete factors_vars;
+	delete energy_table;
+}

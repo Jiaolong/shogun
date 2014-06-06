@@ -18,6 +18,7 @@
 #include <shogun/structure/Factor.h>
 #include <shogun/labels/FactorGraphLabels.h>
 #include <shogun/structure/DisjointSet.h>
+#include <shogun/io/UAIFile.h>
 
 namespace shogun
 {
@@ -119,6 +120,16 @@ public:
 
 	/** @return is tree graph or not */
 	bool is_tree_graph() const;
+
+	/** load factor graph from UAI file
+	 * @param uai_file UAI file 
+	 */
+	void load_uai_file(CUAIFile* uai_file);
+
+	/** save factor graph into UAI file 
+	 * @param uai_file UAI file
+	 */
+	void save_uai_file(CUAIFile* uai_file);
 
 	/** perform loss-augmentation
 	 *
