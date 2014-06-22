@@ -84,6 +84,8 @@ void CGraphCut::init()
 	// build s-t graph
 	build_st_graph(m_num_nodes, max_num_edges);
 
+	m_submodularity = true;
+
 	for (int32_t j = 0; j < m_fg->get_num_factors(); j++)
 	{
 		CFactor* fac = dynamic_cast<CFactor*>(facs->get_element(j));
@@ -175,6 +177,9 @@ float64_t CGraphCut::inference(SGVector<int32_t> assignment)
 	SG_DEBUG("fg.evaluate_energy(assignment) = %f\n", m_fg->evaluate_energy(assignment));
 	SG_DEBUG("minimized energy = %f\n", m_map_energy);
 
+	if (m_submodularity == false)
+		SG_DEBUG("\nTruncation method is applied to ensure submodularity. Exact inference may not be possible.");
+	
 	return m_map_energy;
 }
 
@@ -226,6 +231,7 @@ void CGraphCut::add_factor(CFactor* factor)
 		// Added "truncation" code below to ensure regularity / submodularity
 		if (A + D > C + B)
 		{
+			m_submodularity = false;
 			SG_DEBUG("Truncation is applied to ensure regularity / submodularity.");
 
 			float64_t delta = A + D - C - B;

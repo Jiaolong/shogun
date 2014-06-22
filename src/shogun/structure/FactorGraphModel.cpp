@@ -327,7 +327,6 @@ CResultSet* CFactorGraphModel::argmax(SGVector<float64_t> w, int32_t feat_idx, b
 	ret->score = energy_gt;
 
 	// - min_y [ E(x_i, y; w) - delta(y_i, y) ]
-	CMAPInference infer_met(fg, m_inf_type);
 	if (training)
 	{
 		fg->loss_augmentation(y_truth); // wrong assignments -delta()
@@ -339,17 +338,40 @@ CResultSet* CFactorGraphModel::argmax(SGVector<float64_t> w, int32_t feat_idx, b
 		}
 	}
 
+	// y_star
+	CFactorGraphObservation* y_star;
+	SGVector<int32_t> states_star;
+	float64_t l_energy_pred;
+
+	CMAPInference infer_met(fg, m_inf_type);
 	infer_met.inference();
 
-	// y_star
-	CFactorGraphObservation* y_star = infer_met.get_structured_outputs();
-	SGVector<int32_t> states_star = y_star->get_data();
+	y_star = infer_met.get_structured_outputs();
+	states_star = y_star->get_data();
 
 	ret->argmax = y_star;
 	ret->psi_pred = get_joint_feature_vector(feat_idx, y_star);
-	float64_t l_energy_pred = fg->evaluate_energy(states_star);
+	l_energy_pred = fg->evaluate_energy(states_star);
 	ret->score -= l_energy_pred;
 	ret->delta = delta_loss(y_truth, y_star);
+
+	if (training && ret->score < 0)
+	{
+		// use y_truth instead
+		SG_UNREF(y_star);
+		y_star = new CFactorGraphObservation(y_truth->get_data(), y_truth->get_loss_weights());
+		SG_REF(y_star);
+		states_star = y_star->get_data();
+		
+		ret->argmax = y_star;
+		ret->psi_pred = get_joint_feature_vector(feat_idx, y_star);
+		l_energy_pred = energy_gt;
+		ret->score = 0;
+		ret->delta = 0;
+
+		if (m_verbose)
+			SG_SPRINT("Slack < 0, inference may not be exact, hinge loss is truncated!");
+	}
 
 	if (m_verbose)
 	{

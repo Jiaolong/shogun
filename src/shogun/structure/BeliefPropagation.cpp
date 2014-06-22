@@ -108,6 +108,8 @@ void CTreeMaxProduct::init()
 	m_msg_map_var = msg_map_type();
 	m_msg_map_fac = msg_map_type();
 	m_msgset_map_var = msgset_map_type();
+	
+	m_submodularity = true;
 }
 
 void CTreeMaxProduct::get_message_order(std::vector<MessageEdge*>& order,

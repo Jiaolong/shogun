@@ -73,6 +73,9 @@ public:
 	/** @return minimized energy */
 	float64_t get_energy() const;
 
+	/** @return submodularity*/
+	bool submodularity();
+	
 private:
 	/** register parameters and initialize members */
 	void init();
@@ -118,6 +121,9 @@ public:
 	 */
 	virtual float64_t inference(SGVector<int32_t> assignment) = 0;
 
+	/** @return submodularity*/
+	bool submodularity() const { return m_submodularity; };
+	
 private:
 	/** register parameters */
 	void register_parameters();
@@ -125,6 +131,9 @@ private:
 protected:
 	/** pointer of factor graph */
 	CFactorGraph* m_fg;
+	
+	/** submodularity */
+	bool m_submodularity;
 };
 
 }

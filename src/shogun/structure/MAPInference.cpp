@@ -94,6 +94,11 @@ void CMAPInference::inference()
 	SG_REF(m_outputs);
 }
 
+bool CMAPInference::submodularity()
+{
+	return m_infer_impl->submodularity();
+}
+
 CFactorGraphObservation* CMAPInference::get_structured_outputs() const
 {
 	SG_REF(m_outputs);
