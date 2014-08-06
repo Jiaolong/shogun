@@ -12,10 +12,27 @@ import itertools
 from modshogun import Factor, TableFactorType, FactorGraph
 from modshogun import FactorGraphObservation, FactorGraphLabels, FactorGraphFeatures
 from modshogun import FactorGraphModel, GRAPH_CUT
-from modshogun import GraphCut
+from modshogun import MAPInference, GraphCut
 from modshogun import StochasticSOSVM
 
 from synthetic_grids import generate_blocks_multinomial
+
+def make_grid_edges(grid_w, grid_h, neighborhood=4, return_lists=False):
+     if neighborhood not in [4, 8]:
+         raise ValueError("neighborhood can only be '4' or '8', got %s" %
+                          repr(neighborhood))
+     inds = np.arange(grid_w * grid_h).reshape([grid_w, grid_h])
+     inds = inds.astype(np.int64)
+     right = np.c_[inds[:, :-1].ravel(), inds[:, 1:].ravel()]
+     down = np.c_[inds[:-1, :].ravel(), inds[1:, :].ravel()]
+     edges = [right, down]
+     if neighborhood == 8:
+         upright = np.c_[inds[1:, :-1].ravel(), inds[:-1, 1:].ravel()]
+         downright = np.c_[inds[:-1, :-1].ravel(), inds[1:, 1:].ravel()]
+         edges.extend([upright, downright])
+     if return_lists:
+         return edges
+     return np.vstack(edges)
 
 def define_factor_types(num_vars, len_feat, edge_table):
     """ Define factor types
@@ -123,29 +140,46 @@ def evaluation(labels_pr, labels_gt, model):
 
     return ave_loss
 
+def load_denoising_data(fname):
+    """ Load binary denosing data.
+
+        Args:
+            fname: file name
+    """
+    import scipy.io
+    mat = scipy.io.loadmat(fname)
+    X_Cell = mat['X'][0]
+    Y_Cell = mat['Y'][0]
+    # convert cell array
+    X = np.zeros(shape=(X_Cell.shape[0], X_Cell[0].shape[0], X_Cell[0].shape[1]))
+    Y = X.astype('int32')
+    for i in range(X_Cell.shape[0]):
+        X[i] = X_Cell[i]
+        Y[i] = Y_Cell[i]
+
+    return X, Y
+
 def denoise_sosvm():
     import time
 
     # generate synthetic data
-    # n_samples=20, noise=0.5, seed=None, size_x=12
-    X, Y = generate_blocks_multinomial(noise=2, n_samples=20, seed=1)
-    feats_train = X[:,:,:,1]
-    labels_train = Y
-    sz_ft = feats_train.shape
-    sz_lb = labels_train.shape
-    feats_train =  np.reshape(feats_train, (sz_ft[0], sz_ft[1]*sz_ft[2]))
-    labels_train = np.reshape(labels_train, (sz_lb[0], sz_lb[1]*sz_lb[2]))
+    X, Y = load_denoising_data('data_denoising_10x10.mat')
+    X = X[:2,:,:]
+    Y = Y[:2,:,:]
+
+    feats_train = X.reshape(X.shape[0], X.shape[1]*X.shape[2])
+    labels_train = Y.reshape(Y.shape[0], Y.shape[1]*Y.shape[2])
     len_label = labels_train.shape[1]
     len_feat = feats_train.shape[1]
 
-    # compute full-connected edge table
-    full = np.vstack([x for x in itertools.combinations(range(len_label), 2)])
+    # compute the grid edge_list
+    edge_list = make_grid_edges(Y.shape[1], Y.shape[2])
 
     # define factor types
-    factor_types = define_factor_types(len_label, len_feat, full)
+    factor_types = define_factor_types(len_label, len_feat, edge_list)
 
     # create features and labels for factor graph mode
-    (labels_fg, feats_fg) = build_factor_graph_model(labels_train, feats_train, factor_types, full, GRAPH_CUT)
+    (labels_fg, feats_fg) = build_factor_graph_model(labels_train, feats_train, factor_types, edge_list, GRAPH_CUT)
 
     # create model and register factor types
     model = FactorGraphModel(feats_fg, labels_fg, GRAPH_CUT)
@@ -177,16 +211,32 @@ def denoise_sosvm():
     # generate synthetic testing dataset
 
     # plot one example
-    i = 10
-    x, y, y_pred = X[i], Y[i], Y[i]
-    y_pred = y_pred.reshape(x.shape[:2])
-    fig, plots = plt.subplots(1, 3, figsize=(12, 4))
+    i = 1
+    x, y = X[i], Y[i]
+    # predicted output
+    y_pred = FactorGraphObservation.obtain_from_generic(labels_pr.get_label(i))
+    y_pred = y_pred.get_data().reshape(x.shape[:2])
+
+    # inference
+    fg_i = feats_fg.get_sample(i)
+    fg_i.compute_energies()
+    fg_i.connect_components()
+    # perform MAP inference
+    infer_met = MAPInference(fg_i, GRAPH_CUT)
+    infer_met.inference()
+    y_infer = infer_met.get_structured_outputs()
+    y_infer = y_infer.get_data().reshape(x.shape[:2])
+
+    #res = model.
+    fig, plots = plt.subplots(1, 4, figsize=(12, 4))
     plots[0].matshow(y)
     plots[0].set_title("ground truth")
-    plots[1].matshow(np.argmax(x, axis=-1))
+    plots[1].matshow(x)
     plots[1].set_title("input")
     plots[2].matshow(y_pred)
     plots[2].set_title("prediction")
+    plots[3].matshow(y_infer)
+    plots[3].set_title("inference")
 
     for p in plots:
         p.set_xticks(())
