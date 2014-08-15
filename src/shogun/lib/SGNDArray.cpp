@@ -98,6 +98,147 @@ template<class T> void SGNDArray<T>::transpose_matrix(index_t matIdx) const
 	dims[1] = auxDim;
 }
 
+template<class T> SGNDArray<T>& SGNDArray<T>::operator=(const SGNDArray& ndarray)
+{
+	copy_data(ndarray);
+	
+	return (*this);
+}
+
+template<class T> SGNDArray<T>& SGNDArray<T>::operator=(T val)
+{
+	for (index_t i = 0; i < get_size(); i++)
+	{
+		array[i] = val;
+	}
+	
+	return (*this);
+}
+
+template<>
+SGNDArray<float64_t>& SGNDArray<float64_t>::operator*=(float64_t val)
+{
+	for (index_t i = 0; i < get_size(); i++)
+	{
+		array[i] *= val;
+	}
+	
+	return (*this);
+}
+
+template<>
+SGNDArray<float64_t>& SGNDArray<float64_t>::operator+=(SGNDArray& ndarray)
+{
+	ASSERT(get_size() == ndarray.get_size());
+	ASSERT(num_dims == ndarray.num_dims);
+	
+	for (index_t i = 0; i < get_size(); i++)
+	{
+		array[i] += ndarray.array[i];
+	}
+	
+	return (*this);
+}
+
+template<>
+SGNDArray<float64_t>& SGNDArray<float64_t>::operator-=(SGNDArray& ndarray)
+{
+	ASSERT(get_size() == ndarray.get_size());
+	ASSERT(num_dims == ndarray.num_dims);
+	
+	for (index_t i = 0; i < get_size(); i++)
+	{
+		array[i] -= ndarray.array[i];
+	}
+	
+	return (*this);
+}
+	
+template<>
+float64_t SGNDArray<float64_t>::max_element(int32_t &max_at)
+{
+	float64_t m = array[0];
+	max_at = 0;
+	
+	for (int32_t i = 1; i < get_size(); i++)
+	{
+		if (array[i] >= m)
+		{
+			max_at = i;
+			m = array[i];
+		}
+	}
+	
+	return m;
+}
+
+template<class T>
+T SGNDArray<T>::get_value(index_t *index) const
+{
+	int32_t y = 0;
+	int32_t fact = 1;
+	
+	for (int32_t i = num_dims - 1; i >= 0; i--)
+	{
+		y += index[i] * fact;
+		fact *= dims[i];
+	}
+	
+	return array[y];
+}
+
+template<class T>
+void SGNDArray<T>::next_index(index_t *curr_index) const
+{
+	for (int32_t i = num_dims - 1; i >= 0; i++ )
+	{
+		curr_index[i]++;
+		if (curr_index[i] < dims[i])
+		{
+			break;
+		}
+		curr_index[i] = 0;
+	}
+}
+
+template<>
+void SGNDArray<float64_t>::expand(SGNDArray &big_array, index_t *axes, int32_t num_axes)
+{
+	// TODO: A nice implementation would be a function like repmat in matlab
+	REQUIRE(num_axes <= 2, "Only 1-d and 2-d array can be expanded currently.");
+	// Initialize indices in big array to zeros
+	index_t inds_big[big_array.num_dims];
+	for (int32_t i = 0; i < big_array.num_dims; i++)
+	{
+		inds_big[i] = 0;
+	}
+
+	// Replicate the small array to the big one.
+	// Go over the big one by one and take the corresponding value
+	float64_t* data_big = &big_array.array[0];
+	for (int32_t vi = 0; vi < big_array.get_size(); vi++)
+	{
+		int32_t y = 0;
+
+		if (num_axes == 1)
+		{
+			y = inds_big[axes[0]];
+		}
+		else if (num_axes == 2)
+		{
+			int32_t ind1 = axes[0];
+			int32_t ind2 = axes[1];
+			y = inds_big[ind1] * dims[1] + inds_big[ind2];
+		}
+
+		*data_big = array[y];
+		data_big++;
+
+		// Move to the next index
+		big_array.next_index(inds_big);
+	}
+}
+
 template class SGNDArray<bool>;
 template class SGNDArray<char>;
 template class SGNDArray<int8_t>;

@@ -56,6 +56,22 @@ template<class T> class SGNDArray : public SGReferencedData
 		 */
 		void transpose_matrix(index_t matIdx) const;
 
+        /** @return the size of the array in 1-d flattend vector */
+        inline index_t get_size()
+        {
+            if (num_dims == 0)
+                return 0;
+
+            index_t length_array = 1;
+            
+            for (int32_t i = 0; i < num_dims; i++)
+            {
+                length_array *= dims[i]; 
+            }
+
+            return length_array;
+        }
+
 		/** operator overload for ndarray read only access
 		 *
 		 * @param index to access
@@ -73,8 +89,52 @@ template<class T> class SGNDArray : public SGReferencedData
 		{
 			return array[index];
 		}
+        
+        /** operator overload for equal to n-d array
+         *
+         * @param orig the n-d array to be equal to
+         */
+        SGNDArray<T>& operator=(const SGNDArray& orig);
 
-	protected:
+        /** operator overload for equal to a scalar value
+         *
+         * all elements will be assigned to the same scalar value
+         *
+         * @param val the scalar value
+         */
+        SGNDArray<T>& operator=(T val);
+        SGNDArray<T>& operator*=(T val);
+        SGNDArray<T>& operator+=(SGNDArray& ndarray);
+        SGNDArray<T>& operator-=(SGNDArray& ndarray);
+        
+        /** find the maximum value of the elements
+         *
+         * @param max_at the index of the maximum element, index is in 1-d flattend array
+         * @return the maximum value
+         */
+        T max_element(index_t& max_at);
+        
+        /** expand to a big size array
+         *
+         * @param big_array the target big size array
+		 * @param axes the axis where the current ndarray will be replicated
+		 * @param num_axes number of axis
+         */
+		void expand(SGNDArray& big_array, index_t *axes, int32_t num_axes);
+
+        /** get the value at index
+         *
+         * @param the index of the N-d array
+         */
+        T get_value(index_t *index) const;
+
+        /** get the next index from the current one
+         *
+         * @param curr_index the current index
+         */
+        void next_index(index_t *curr_index) const;
+	
+    protected:
 
 		/** copy data */
 		virtual void copy_data(const SGReferencedData &orig);
