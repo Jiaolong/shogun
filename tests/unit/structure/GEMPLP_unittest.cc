@@ -176,13 +176,12 @@ TEST(GEMPLP, random_chain)
 }
 
 // Test with SOSVM
-/*TEST(GEMPLP, sosvm)
+TEST(GEMPLP, sosvm)
 {
 	CFGTestData* fg_test_data = new CFGTestData();
 	SG_REF(fg_test_data);
 
-	EXPECT_NEAR(fg_test_data->test_sosvm(GEMPLP), 0, 0.1);
+	EXPECT_EQ(fg_test_data->test_sosvm(GEMPLP), 0);
 
 	SG_UNREF(fg_test_data);
 }
-*/

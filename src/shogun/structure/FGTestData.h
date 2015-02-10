@@ -60,7 +60,7 @@ public:
 	 *
 	 * @param A value in (0,0)
 	 * @param B value in (0,1)
-	 * @param c value in (1,0)
+	 * @param C value in (1,0)
 	 * @param D value in (1,1)
 	 */
 	void truncate_energy(float64_t &A, float64_t &B, float64_t &C, float64_t &D);
@@ -97,7 +97,7 @@ public:
 
 	/** Get fully connected edges
 	 *
-	 * @param num_class number of classes
+	 * @param num_classes number of classes
 	 * @return matrix of edge
 	 */
 	SGMatrix< int32_t > get_edges_full(const int32_t num_classes);
@@ -117,7 +117,7 @@ public:
 
 	/** Define factor type
 	 *
-	 * @param num_class number of class
+	 * @param num_classes number of classes
 	 * @param dim dimension of the feature
 	 * @param num_edges number of edegs
 	 * @param v_factor_type factor types

@@ -110,7 +110,7 @@ TEST(GraphCut, graph_cut_sosvm)
 	CFGTestData* fg_test_data = new CFGTestData();
 	SG_REF(fg_test_data);
 	
-	EXPECT_EQ(fg_test_data->test_sosvm(GRAPH_CUT), 0);
+	EXPECT_NEAR(fg_test_data->test_sosvm(GRAPH_CUT), 0, 0.1);
 
 	SG_UNREF(fg_test_data);
 }

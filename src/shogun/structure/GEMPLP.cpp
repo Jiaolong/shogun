@@ -95,7 +95,7 @@ void CGEMPLP::init()
 			// initialize messages from cluster and set it 0
 			SGNDArray<float64_t> message(dims_array);
 			message.set_const(0);
-			m_msgs_from_cluster[c][s] = message; 
+			m_msgs_from_cluster[c][s] = message.clone(); 
 		}
 
 		// initialize potential on cluster
@@ -142,7 +142,7 @@ SGNDArray<float64_t> CGEMPLP::convert_message(CFactor* factor)
 	else
 		SG_ERROR("Index issue has not been solved for higher order (>=3) factors.");
 
-	return message;
+	return message.clone();
 }
 
 int32_t CGEMPLP::find_separator_index(SGVector<int32_t> clique_A, SGVector<int32_t> clique_B)
@@ -188,13 +188,26 @@ float64_t CGEMPLP::inference(SGVector<int32_t> assignment)
 	SG_SDEBUG("Running MPLP for %d iterations\n",  m_param.m_max_iter);
 	
 	float64_t last_obj = CMath::INFTY;
-	
+
+	for (int32_t c = 0; c < m_factors->get_num_elements(); c++)
+	{
+		if (m_clique_separators[c].size() == 1 
+				&& (m_all_separators[m_clique_separators[c][0]].size() == 1))
+			update_messages(c);
+	}
+
 	// block coordinate desent, outer loop
 	for (int32_t it = 0; it < m_param.m_max_iter; ++it)
 	{
 		// update message, iterate over all cliques
 		for (int32_t c = 0; c < m_factors->get_num_elements(); c++)
+		{
+			if (m_clique_separators[c].size() == 1 && it >0
+					&& (m_all_separators[m_clique_separators[c][0]].size() == 1))
+				continue;
+
 			update_messages(c);
+		}
 		
 		// calculate the objective value
 		float64_t obj = 0;
@@ -232,7 +245,7 @@ float64_t CGEMPLP::inference(SGVector<int32_t> assignment)
 
 		SG_SDEBUG("Iter= %d Objective=%f ObjBest=%f ObjDel=%f Gap=%f \n", (it + 1), obj, int_val, obj_del, int_gap);
 
-		if (obj_del < m_param.m_obj_del_thr)
+		if (obj_del < m_param.m_obj_del_thr && it > 16)
 			break;
 		
 		if (int_gap < m_param.m_int_gap_thr)

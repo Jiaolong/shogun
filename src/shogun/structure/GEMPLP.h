@@ -70,6 +70,7 @@ public:
 	/** Constructor
 	 *
 	 * @param fg factor graph
+	 * @param param parameters
 	 */
 	CGEMPLP(CFactorGraph* fg, Parameter param = Parameter());
 
@@ -84,7 +85,7 @@ public:
 
 	/** Inference
 	 *
-	 * @param the assignment
+	 * @param assignment the assignment
 	 * @return the total energy after doing inference
 	 */
 	virtual float64_t inference(SGVector<int32_t> assignment);
