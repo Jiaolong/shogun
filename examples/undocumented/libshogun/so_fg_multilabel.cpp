@@ -401,7 +401,7 @@ int main(int argc, char * argv[])
 	read_data(FNAME_TEST, labels_test, feats_test);
 
 	MultilabelParameter param;
-	
+/*	
 	SG_SPRINT("\nExample 1: tree structure, max-product inference\n");
 	param = MultilabelParameter(TREE, TREE_MAX_PROD);
 	test(param, labels_train, feats_train, labels_test, feats_test);
@@ -413,7 +413,7 @@ int main(int argc, char * argv[])
 	SG_SPRINT("\nExample 2.2: full-connected graph, graph-cuts inference\n");
 	param = MultilabelParameter(FULL, GRAPH_CUT);
 	test(param, labels_train, feats_train, labels_test, feats_test);
-
+*/
 	SG_SPRINT("\nExample 3.1: tree structure, GEMPLP inference\n");
 	param = MultilabelParameter(TREE, GEMPLP);
 	test(param, labels_train, feats_train, labels_test, feats_test);

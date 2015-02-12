@@ -17,6 +17,7 @@
 #include <shogun/structure/Factor.h>
 #include <shogun/structure/MAPInference.h>
 #include <shogun/lib/SGNDArray.h>
+#include "./mplp/mplp_alg.h"
 
 #include <vector>
 
@@ -93,24 +94,8 @@ public:
 private:
 	/** Initialize GEMPLP with factor graph */
 	void init();
-	
-	/** Message updating on a clique
-	 *
-	 * Please refer to "GEMPLP" in NIPS paper of
-	 * A. Globerson and T. Jaakkola [1] for more details.
-	 *	
-	 */
-	void update_messages(int32_t id_clique);	
 
 public:
-	/** Computer the maximum value along the sub-dimension
-	 *
-	 * @param tar_arr target nd array
-	 * @param subset_inds sub-dimension indices
-	 * @param max_res the result nd array
-	 */
-	void max_in_subdimension(SGNDArray<float64_t> tar_arr, SGVector<int32_t> &subset_inds, SGNDArray<float64_t> &max_res) const;
-
 	/** Find separators between clqiues
 	 *
 	 * @param clique_A clique A
@@ -128,6 +113,8 @@ public:
 	 * @return potential of the cluster in MPLP
 	 */
 	SGNDArray<float64_t> convert_message(CFactor* factor);
+	
+	void exist_or_insert(vector<int32_t>& v, int32_t k);
 
 public:
 	/** GEMPLP parameter */
@@ -136,18 +123,16 @@ public:
 	CDynamicObjectArray* m_factors;
 	/** all separators */
 	vector<SGVector<int32_t> > m_all_separators;
-	/** the separator indices (node indices) on each clique */
-	vector<vector<int32_t> > m_clique_separators;
-	/** the indices (orders in the clique) of the separators on each clique */
-	vector<vector<SGVector<int32_t> > > m_clique_inds_separators;
-	/** store the sum of messages into separators */
-	vector<SGNDArray<float64_t> > m_msgs_into_separators;
-	/** store the messages from cluster to separator */
-	vector<vector<SGNDArray<float64_t> > > m_msgs_from_cluster;
-	/** store the original (-) energy of the factors */
-	vector<SGNDArray<float64_t> > m_theta_cluster;
-	/** current assignment */
-	SGVector<int32_t> m_current_assignment;
+
+	vector<vector<int> > m_all_intersects;
+	vector<Region> m_all_regions;
+	vector<vector<int> > m_all_region_inds;	
+	vector<MulDimArr> m_sum_into_intersects;
+	vector<vector<int> > m_all_region_intersects;
+	vector<int> m_var_sizes;
+	vector<int> m_decoded_res;
+
+	MPLPAlg* m_mplp;
 };
 }
 #endif
